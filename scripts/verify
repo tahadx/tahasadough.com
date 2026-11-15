@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Local verification gate. The same commands run in CI (.github/workflows/verify.yml),
+# so a green pre-push means a green build.
+#
+#   make check      # same thing
+#   git config core.hooksPath .githooks   # gate pushes once per clone
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+PORT="${PORT:-8099}"
+URL="http://127.0.0.1:${PORT}"
+
+echo "verify: build"
+make build
+
+echo "verify: html"
+if command -v xmllint >/dev/null; then
+	for page in index.html 404.html; do
+		xmllint --html --noout "$page"
+	done
+else
+	echo "  xmllint not found — skipping" >&2
+fi
+
+echo "verify: assets"
+python3 - <<'PY'
+import pathlib, re, sys
+
+missing = []
+for page in ("index.html", "404.html"):
+    html = pathlib.Path("dist", page).read_text()
+    for ref in re.findall(r'(?:src|href)="(/[^"#?]*)"', html):
+        if ref != "/" and not pathlib.Path("dist", ref.lstrip("/")).exists():
+            missing.append(f"{page}: {ref}")
+
+if missing:
+    print("\n".join(missing), file=sys.stderr)
+    sys.exit("verify: referenced files missing from dist")
+print("  all local references resolve")
+PY
+
+echo "verify: lighthouse"
+chrome="${CHROME_PATH:-}"
+if [ -z "$chrome" ]; then
+	for candidate in chromium google-chrome chromium-browser; do
+		if command -v "$candidate" >/dev/null; then
+			chrome="$(command -v "$candidate")"
+			break
+		fi
+	done
+fi
+if [ -z "$chrome" ]; then
+	echo "  no Chrome/Chromium found — skipping (CI installs it)" >&2
+	exit 0
+fi
+
+python3 -m http.server "$PORT" --directory dist >/dev/null 2>&1 &
+server=$!
+trap 'kill "$server" 2>/dev/null || true' EXIT
+
+for _ in $(seq 1 50); do
+	if curl -fsS "$URL/" >/dev/null 2>&1; then break; fi
+	sleep 0.1
+done
+
+report="$(mktemp)"
+CHROME_PATH="$chrome" npx --yes lighthouse@12 "$URL/" \
+	--only-categories=accessibility,best-practices,seo,performance \
+	--chrome-flags="--headless=new --no-sandbox --disable-gpu" \
+	--output=json --output-path="$report" --quiet
+
+python3 - "$report" <<'PY'
+import json, sys
+
+data = json.load(open(sys.argv[1]))
+scores = {name: cat["score"] for name, cat in data["categories"].items()}
+for name in ("accessibility", "best-practices", "seo", "performance"):
+    print(f"  {name:16} {scores[name]}")
+
+gating = [n for n in ("accessibility", "best-practices", "seo") if scores[n] < 1]
+for name in gating:
+    for ref in data["categories"][name]["auditRefs"]:
+        audit = data["audits"][ref["id"]]
+        if audit.get("score") is not None and audit["score"] < 1:
+            print(f"    [{ref['id']}] {audit['title']}", file=sys.stderr)
+
+if gating:
+    sys.exit(f"verify: failing categories: {', '.join(gating)}")
+
+# Not gated: this server sends no gzip or cache headers, so performance is a
+# pessimistic local reading. The CDN scores higher.
+if scores["performance"] < 1:
+    print("  (performance below 100 on the local server; not gating)")
+PY
+
+echo "verify: all green"

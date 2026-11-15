@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" class="overflow-x-hidden">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>404 — Taha Sadough</title>
+		<meta name="description" content="Not Found" />
+		<meta name="robots" content="noindex" />
+		<meta name="theme-color" id="theme-color" content="#000000" />
+		<script>
+			(() => {
+				const theme =
+					localStorage.getItem('theme') ??
+					(matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+				if (theme === 'light') document.documentElement.classList.add('light');
+				document
+					.querySelector('meta[name="theme-color"]')
+					?.setAttribute('content', theme === 'light' ? '#faf5ef' : '#000000');
+			})();
+		</script>
+		<link rel="icon" href="/favicon.ico" />
+		<link rel="stylesheet" href="/style.css" />
+	</head>
+	<body class="overflow-x-hidden bg-surface font-sans text-on-surface antialiased">
+		<a
+			href="#main-content"
+			class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-100 focus:rounded-lg focus:bg-elevated focus:px-4 focus:py-2 focus:text-on-surface focus:ring-2 focus:ring-on-surface"
+		>
+			Skip to content
+		</a>
+		<main
+			id="main-content"
+			aria-label="Main content"
+			class="container flex min-h-dvh flex-col items-center justify-center gap-3 pt-24 pb-16 text-center"
+		>
+			<p class="text-7xl font-bold text-gray">404</p>
+			<h1 class="text-2xl text-on-surface md:text-3xl">Not Found</h1>
+			<p class="max-w-md text-base text-gray">Sorry, an unexpected error occurred.</p>
+			<a
+				href="/"
+				class="mt-6 cursor-pointer rounded-3xl border border-gray px-8 py-2.5 font-bold transition-link hover:scale-105 hover:bg-white hover:text-elevated hover:shadow-lg light:hover:bg-black light:hover:text-white light:hover:shadow-black/20"
+			>
+				Back to home
+			</a>
+		</main>
+	</body>
+</html>

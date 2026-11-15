@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Local pre-push gate: the same checks CI runs. Activate once per clone:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+echo "pre-push: build, html, assets, lighthouse"
+scripts/verify

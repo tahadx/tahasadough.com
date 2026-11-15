@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Builds style.css plus a directory of static files. Single implementation for
+# local builds and hosts, so none of them needs make, Go, or Node.
+#
+#   scripts/build                  build CSS and dist/
+#   scripts/build --out <dir>      build CSS and another directory
+#   scripts/build --css-only       build style.css only (watch/dev helper)
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+out=dist
+css_only=0
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--css-only) css_only=1 ;;
+	--out)
+		out="${2:?--out needs a directory}"
+		shift
+		;;
+	*)
+		echo "build: unknown argument $1" >&2
+		exit 2
+		;;
+	esac
+	shift
+done
+
+TAILWIND_TAG="${TAILWIND_TAG:-v4.3.5}"
+TAILWIND=bin/tailwindcss
+
+if [ ! -x "$TAILWIND" ]; then
+	case "$(uname -s)-$(uname -m)" in
+	Linux-x86_64) asset=linux-x64 ;;
+	Linux-aarch64 | Linux-arm64) asset=linux-arm64 ;;
+	Darwin-arm64) asset=macos-arm64 ;;
+	Darwin-x86_64) asset=macos-x64 ;;
+	*)
+		echo "build: unsupported platform $(uname -s)-$(uname -m)" >&2
+		exit 1
+		;;
+	esac
+	mkdir -p bin
+	echo "build: downloading tailwindcss ${TAILWIND_TAG} (${asset})"
+	curl -fsSL "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_TAG}/tailwindcss-${asset}" -o "$TAILWIND"
+	chmod +x "$TAILWIND"
+fi
+
+"$TAILWIND" -i input.css -o style.css --minify
+
+if [ "$css_only" = 1 ]; then
+	exit 0
+fi
+
+rm -rf "$out"
+mkdir -p "$out"
+cp index.html 404.html sitemap.xml robots.txt favicon.ico style.css "$out"/
+cp -r images "$out"/
+echo "build: ${out}/ ready"
